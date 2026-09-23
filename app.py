@@ -8,8 +8,11 @@ import streamlit as st
 from dforge.agents import (
     answer_project_question,
     route_message,
+    run_change_impact_agent,
+    run_failure_analysis_agent,
     run_planner_agent,
     run_requirement_agent,
+    run_retest_agent,
     run_reviewer_agent,
     run_system_agent,
     run_verification_agent,
@@ -136,6 +139,79 @@ def verification_reply():
     return "\n".join(lines)
 
 
+def failure_reply():
+    state = st.session_state.project_state
+    result = state.failure_analysis
+    lines = [
+        "🧭 Router → **Failure Analysis Agent**",
+        "",
+        "### 시험 문제 분석",
+        f"**{result.issue.issue_id}** · {result.issue.symptom}",
+    ]
+    if result.issue.test_id:
+        lines.append(f"- 관련 시험: **{result.issue.test_id}**")
+    if result.related_requirements:
+        lines.append("- 관련 요구사항: " + ", ".join(result.related_requirements))
+    if result.related_modules:
+        lines.append("- 관련 모듈: " + ", ".join(result.related_modules))
+    if result.investigation_candidates:
+        lines += ["", "**우선 확인 후보**"]
+        lines += [f"- {item}" for item in result.investigation_candidates]
+    if result.evidence_to_check:
+        lines += ["", "**확인할 자료/근거**"]
+        lines += [f"- {item}" for item in result.evidence_to_check]
+    lines += [
+        "",
+        "※ 원인을 확정하지 않고, 엔지니어가 먼저 확인할 범위를 줄여주는 단계입니다.",
+        "다음으로 '영향 범위 알려줘' 또는 '뭘 다시 시험해야 해?'라고 물어볼 수 있습니다.",
+    ]
+    return "\n".join(lines)
+
+
+def impact_reply():
+    state = st.session_state.project_state
+    result = state.impact_analysis
+    lines = [
+        "🧭 Router → **Change Impact Agent**",
+        "",
+        "### 변경/실패 영향 검토 범위",
+    ]
+    for item in result.impacted_items:
+        lines.append(
+            f"- **{item.target_type.upper()} · {item.target_id}** — {item.reason}"
+        )
+    if result.review_scope:
+        lines += ["", "**엔지니어 검토 범위**"]
+        lines += [f"- {item}" for item in result.review_scope]
+    lines += [
+        "",
+        "※ 위 항목은 '확정 변경 대상'이 아니라 먼저 검토할 범위입니다.",
+    ]
+    return "\n".join(lines)
+
+
+def retest_reply():
+    state = st.session_state.project_state
+    result = state.retest_plan
+    lines = [
+        "🧭 Router → **Retest Agent**",
+        "",
+        "### 재시험 검토 후보",
+    ]
+    for item in result.candidates:
+        lines.append(
+            f"- **{item.priority.upper()} · {item.test_id}** — {item.reason}"
+        )
+    if result.prerequisite_checks:
+        lines += ["", "**재시험 전 확인**"]
+        lines += [f"- {item}" for item in result.prerequisite_checks]
+    lines += [
+        "",
+        "※ 실제 재시험 여부와 범위는 엔지니어가 최종 판단합니다.",
+    ]
+    return "\n".join(lines)
+
+
 def review_reply():
     state = st.session_state.project_state
     lines = [
@@ -175,6 +251,9 @@ def status_reply():
         ("시스템 설계", state.architecture is not None),
         ("시험·검증", state.verification is not None),
         ("Traceability", state.traceability is not None),
+        ("Failure Analysis", state.failure_analysis is not None),
+        ("Impact Analysis", state.impact_analysis is not None),
+        ("Retest Plan", state.retest_plan is not None),
         ("Engineering Review", state.review is not None),
         ("개발계획", state.development_plan is not None),
     ]
@@ -236,6 +315,12 @@ def fallback_action(message: str) -> str:
     text = message.lower()
     if any(word in text for word in ["전체", "끝까지", "보고서", "다 진행", "계속 진행"]):
         return "run_all"
+    if any(word in text for word in ["실패", "오류", "이상", "고장", "끊겼", "문제 발생"]):
+        return "failure_analysis"
+    if any(word in text for word in ["영향 범위", "영향있", "영향 있어", "무엇에 영향"]):
+        return "impact_analysis"
+    if any(word in text for word in ["재시험", "다시 시험", "다시 검증", "다시 확인"]):
+        return "retest"
     if any(word in text for word in ["시험", "검증", "테스트"]):
         return "verification"
     if any(word in text for word in ["설계", "구성", "아키텍처", "architecture"]):
@@ -322,6 +407,36 @@ def handle_message(message: str) -> str:
         state.development_plan = None
         return verification_reply()
 
+    if action == "failure_analysis":
+        if not ensure_verification():
+            return clarification_reply()
+
+        state.failure_analysis = run_failure_analysis_agent(message, state)
+        state.impact_analysis = None
+        state.retest_plan = None
+        return failure_reply()
+
+    if action == "impact_analysis":
+        if state.failure_analysis is None:
+            return (
+                "먼저 어떤 시험이나 기능에서 어떤 문제가 발생했는지 알려주세요.\n\n"
+                "예: TEST-003에서 센서 데이터가 간헐적으로 끊겼어."
+            )
+        state.impact_analysis = run_change_impact_agent(state)
+        state.retest_plan = None
+        return impact_reply()
+
+    if action == "retest":
+        if state.failure_analysis is None:
+            return (
+                "재시험 후보를 정하려면 먼저 발생한 문제를 알려주세요.\n\n"
+                "예: TEST-003에서 센서 데이터가 간헐적으로 끊겼어."
+            )
+        if state.impact_analysis is None:
+            state.impact_analysis = run_change_impact_agent(state)
+        state.retest_plan = run_retest_agent(state)
+        return retest_reply()
+
     if action == "review":
         if not ensure_verification():
             return clarification_reply()
@@ -395,10 +510,18 @@ with st.sidebar:
             "PASS" if state.traceability.coverage_ok else "CHECK",
         )
 
+    if state.failure_analysis:
+        st.caption(f"최근 이슈: {state.failure_analysis.issue.issue_id}")
+    if state.retest_plan:
+        st.caption(f"재시험 후보: {len(state.retest_plan.candidates)}개")
+
     st.divider()
     st.caption("예시 명령")
     st.write("• 시스템 설계해줘")
     st.write("• 시험계획 만들어줘")
+    st.write("• TEST-003에서 센서 값이 끊겼어")
+    st.write("• 영향 범위 알려줘")
+    st.write("• 뭘 다시 시험해야 해?")
     st.write("• 누락된 요구사항 있어?")
     st.write("• 개발계획까지 만들어줘")
     st.write("• 현재 어디까지 됐어?")
