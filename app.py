@@ -4,6 +4,8 @@ import os
 
 from dotenv import load_dotenv
 import streamlit as st
+from openai import AsyncOpenAI
+from agents import set_default_openai_api, set_default_openai_client, set_tracing_disabled
 
 from dforge.agents import (
     answer_project_question,
@@ -23,16 +25,24 @@ from dforge.workflow import run_dforge
 
 load_dotenv()
 
-# Support both local .env files and Streamlit Community Cloud Secrets.
-# Streamlit Secrets are not guaranteed to be exposed as OS environment variables,
-# while the OpenAI Agents SDK expects OPENAI_API_KEY in the environment.
-if not os.getenv("OPENAI_API_KEY"):
+# D-FORGE prototype: use Gemini through its OpenAI-compatible endpoint.
+# The existing OpenAI Agents SDK workflow can therefore stay unchanged.
+gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+if not gemini_key:
     try:
-        secret_key = st.secrets.get("OPENAI_API_KEY")
-        if secret_key:
-            os.environ["OPENAI_API_KEY"] = str(secret_key)
+        gemini_key = str(st.secrets.get("GEMINI_API_KEY", "")).strip()
     except Exception:
-        pass
+        gemini_key = ""
+
+if gemini_key:
+    gemini_client = AsyncOpenAI(
+        api_key=gemini_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    set_default_openai_client(gemini_client, use_for_tracing=False)
+    set_default_openai_api("chat_completions")
+    set_tracing_disabled(True)
+    os.environ["OPENAI_MODEL"] = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 st.set_page_config(
     page_title="D-FORGE",
@@ -557,10 +567,10 @@ st.caption(
     "필요한 Engineering Agent를 선택해 실행합니다."
 )
 
-if not os.getenv("OPENAI_API_KEY"):
+if not gemini_key:
     st.warning(
-        "OPENAI_API_KEY가 설정되지 않았습니다. "
-        "로컬에서는 .env, Streamlit Cloud에서는 App Secrets에 키를 추가해주세요."
+        "GEMINI_API_KEY가 설정되지 않았습니다. "
+        "Streamlit Cloud의 App Secrets에 Gemini API 키를 추가해주세요."
     )
 
 for message in st.session_state.messages:
