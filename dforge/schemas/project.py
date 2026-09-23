@@ -77,6 +77,33 @@ class TraceabilityResult(BaseModel):
         return not self.missing_module_mapping and not self.missing_test_mapping
 
 
+class RouteDecision(BaseModel):
+    action: Literal[
+        "requirements",
+        "architecture",
+        "verification",
+        "review",
+        "planning",
+        "run_all",
+        "status",
+        "question",
+    ]
+    reason: str = ""
+
+
+class AdvisorOutput(BaseModel):
+    answer: str
+    suggested_next_action: Literal[
+        "requirements",
+        "architecture",
+        "verification",
+        "review",
+        "planning",
+        "run_all",
+        "none",
+    ] = "none"
+
+
 class ProjectState(BaseModel):
     project_goal: str
     requirements: RequirementOutput | None = None
