@@ -23,6 +23,17 @@ from dforge.workflow import run_dforge
 
 load_dotenv()
 
+# Support both local .env files and Streamlit Community Cloud Secrets.
+# Streamlit Secrets are not guaranteed to be exposed as OS environment variables,
+# while the OpenAI Agents SDK expects OPENAI_API_KEY in the environment.
+if not os.getenv("OPENAI_API_KEY"):
+    try:
+        secret_key = st.secrets.get("OPENAI_API_KEY")
+        if secret_key:
+            os.environ["OPENAI_API_KEY"] = str(secret_key)
+    except Exception:
+        pass
+
 st.set_page_config(
     page_title="D-FORGE",
     page_icon="🛠️",
@@ -549,7 +560,7 @@ st.caption(
 if not os.getenv("OPENAI_API_KEY"):
     st.warning(
         "OPENAI_API_KEY가 설정되지 않았습니다. "
-        "로컬의 .env 파일에 키를 추가한 뒤 실행해주세요."
+        "로컬에서는 .env, Streamlit Cloud에서는 App Secrets에 키를 추가해주세요."
     )
 
 for message in st.session_state.messages:
