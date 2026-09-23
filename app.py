@@ -42,7 +42,7 @@ if gemini_key:
     set_default_openai_client(gemini_client, use_for_tracing=False)
     set_default_openai_api("chat_completions")
     set_tracing_disabled(True)
-    os.environ["OPENAI_MODEL"] = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    os.environ["OPENAI_MODEL"] = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 st.set_page_config(
     page_title="D-FORGE",
@@ -594,9 +594,11 @@ if prompt:
             try:
                 response = handle_message(prompt)
             except Exception as exc:
+                error_text = str(exc)
                 response = (
-                    "실행 중 오류가 발생했습니다. API 키와 네트워크 상태를 확인해주세요.\n\n"
-                    f"오류: {type(exc).__name__}"
+                    "실행 중 오류가 발생했습니다.\n\n"
+                    f"오류: {type(exc).__name__}\n\n"
+                    f"상세: {error_text[:1200]}"
                 )
 
         st.markdown(response)
