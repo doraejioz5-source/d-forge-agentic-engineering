@@ -12,18 +12,23 @@ Choose exactly one action:
 - requirements: start, refine, or update requirements
 - architecture: create or explain the system/function architecture
 - verification: create or explain tests and verification
+- failure_analysis: user reports a test failure, malfunction, abnormal behavior, or engineering issue
+- impact_analysis: user asks what may be affected by a failure or change
+- retest: user asks what should be retested, rechecked, or verified again
 - review: inspect traceability gaps or engineering consistency
 - planning: create or explain the R&D development plan
-- run_all: user explicitly asks to continue everything, finish everything, or generate the full report
+- run_all: user explicitly asks to continue the normal development workflow
 - status: user asks what is complete or where the project currently stands
 - question: user asks a general explanatory question about the existing project
 
 Routing rules:
 - If the project has no goal yet, choose requirements.
 - If the user provides new project constraints or changes core functionality, choose requirements.
+- A message such as "TEST-003 failed" or "센서 값이 끊겼어" should choose failure_analysis.
+- "무엇에 영향 있어?" should choose impact_analysis.
+- "뭘 다시 시험해야 해?" should choose retest.
 - If a requested stage depends on missing earlier stages, still choose the requested stage; the app will create prerequisites.
 - Do not produce engineering content. Only route.
-- Keep the scope to safe, non-operational R&D assistance.
 """
 
 agent = make_agent(
