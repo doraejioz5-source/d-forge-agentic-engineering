@@ -47,6 +47,50 @@ class VerificationOutput(BaseModel):
     risks: list[str] = Field(default_factory=list)
 
 
+class FailureIssue(BaseModel):
+    issue_id: str = Field(description="Stable ID such as ISSUE-001")
+    test_id: str = ""
+    symptom: str
+    observed_condition: str = ""
+    engineer_note: str = ""
+
+
+class FailureAnalysisOutput(BaseModel):
+    issue: FailureIssue
+    related_requirements: list[str] = Field(default_factory=list)
+    related_modules: list[str] = Field(default_factory=list)
+    related_tests: list[str] = Field(default_factory=list)
+    investigation_candidates: list[str] = Field(default_factory=list)
+    evidence_to_check: list[str] = Field(default_factory=list)
+    uncertainty_note: str = ""
+
+
+class ImpactItem(BaseModel):
+    target_type: Literal["requirement", "module", "test", "document", "interface"]
+    target_id: str
+    reason: str
+
+
+class ChangeImpactOutput(BaseModel):
+    issue_id: str
+    impacted_items: list[ImpactItem] = Field(default_factory=list)
+    review_scope: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+
+
+class RetestCandidate(BaseModel):
+    test_id: str
+    reason: str
+    priority: Literal["high", "medium", "low"] = "medium"
+
+
+class RetestOutput(BaseModel):
+    issue_id: str
+    candidates: list[RetestCandidate] = Field(default_factory=list)
+    prerequisite_checks: list[str] = Field(default_factory=list)
+    decision_note: str = ""
+
+
 class ReviewOutput(BaseModel):
     summary: str
     issues: list[str] = Field(default_factory=list)
@@ -82,6 +126,9 @@ class RouteDecision(BaseModel):
         "requirements",
         "architecture",
         "verification",
+        "failure_analysis",
+        "impact_analysis",
+        "retest",
         "review",
         "planning",
         "run_all",
@@ -97,6 +144,9 @@ class AdvisorOutput(BaseModel):
         "requirements",
         "architecture",
         "verification",
+        "failure_analysis",
+        "impact_analysis",
+        "retest",
         "review",
         "planning",
         "run_all",
@@ -110,5 +160,8 @@ class ProjectState(BaseModel):
     architecture: ArchitectureOutput | None = None
     verification: VerificationOutput | None = None
     traceability: TraceabilityResult | None = None
+    failure_analysis: FailureAnalysisOutput | None = None
+    impact_analysis: ChangeImpactOutput | None = None
+    retest_plan: RetestOutput | None = None
     review: ReviewOutput | None = None
     development_plan: DevelopmentPlanOutput | None = None
